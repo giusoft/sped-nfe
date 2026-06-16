@@ -81,8 +81,8 @@ final class MakeDev
     use TraitTagTotal;
     use TraitCalculations;
 
-    const METHOD_CALCULATION_V1 = 1; //by values, calculate vItem and vNFTot
-    const METHOD_CALCULATION_V2 = 1; //by tags, calculate vItem and vNFTot
+    public const METHOD_CALCULATION_V1 = 1; //by values, calculate vItem and vNFTot
+    public const METHOD_CALCULATION_V2 = 1; //by tags, calculate vItem and vNFTot
 
     protected int $schema; //esta propriedade da classe estabelece qual é a versão do schema sendo considerado
     protected int $tpAmb = 2;
@@ -90,6 +90,9 @@ final class MakeDev
     public array $errors = [];
     public ?string $chNFe;
     public string $xml;
+    protected bool $flagIS = false;
+    protected bool $flagIBSCBS = false;
+    protected bool $flagMono = false;
     protected int $calculationMethod = 2;
     protected string $version;
     protected string $mod = '55';
@@ -100,6 +103,7 @@ final class MakeDev
     protected bool $replaceAccentedChars = false;
     public Dom $dom;
     public stdClass $stdTot;
+    protected array $dataICMSTot;
     protected stdClass $stdISSQNTot;
     protected stdClass $stdIStot;
     protected stdClass $stdIBSCBSTot;
@@ -169,6 +173,7 @@ final class MakeDev
     protected array $aInfAdProd = [];
     protected array $aIBSCBS = [];
     protected array $aGTribRegular = [];
+    protected array $aGCredPresOper = [];
     protected array $aIBSCredPres = [];
     protected array $aCBSCredPres = [];
     protected array $aGTribCompraGov = [];
@@ -177,7 +182,7 @@ final class MakeDev
     protected array $aGCredPresIBSZFM = [];
     protected array $aGAjusteCompet = [];
     protected array $aGEstornoCred = [];
-    protected array $aGCredPresOper = [];
+    protected array $aGper = [];
     protected array $aIS = [];
     protected array $aII = [];
     protected array $aObsItem = [];
@@ -300,8 +305,6 @@ final class MakeDev
         $this->stdIBSCBSTot->vBCIBSCBS = 0;
         $this->stdIBSCBSTot->vIBS = 0;
         $this->stdIBSCBSTot->vCBS = 0;
-        $this->stdIBSCBSTot->vCredPres = 0;
-        $this->stdIBSCBSTot->vCredPresCondSus = 0;
         $this->stdIBSCBSTot->gIBSUF = new stdClass();
         $this->stdIBSCBSTot->gIBSUF->vDif = 0;
         $this->stdIBSCBSTot->gIBSUF->vDevTrib = 0;
@@ -310,9 +313,14 @@ final class MakeDev
         $this->stdIBSCBSTot->gIBSMun->vDif = 0;
         $this->stdIBSCBSTot->gIBSMun->vDevTrib = 0;
         $this->stdIBSCBSTot->gIBSMun->vIBSMun = 0;
+        $this->stdIBSCBSTot->gIBS = new stdClass();
+        $this->stdIBSCBSTot->gIBS->vCredPres = 0;
+        $this->stdIBSCBSTot->gIBS->vCredPresCondSus = 0;
         $this->stdIBSCBSTot->gCBS = new stdClass();
         $this->stdIBSCBSTot->gCBS->vDif = 0;
         $this->stdIBSCBSTot->gCBS->vDevTrib = 0;
+        $this->stdIBSCBSTot->gCBS->vCredPres = 0;
+        $this->stdIBSCBSTot->gCBS->vCredPresCondSus = 0;
         $this->stdIBSCBSTot->gMono = new stdClass();
         $this->stdIBSCBSTot->gMono->vIBSMono = 0;
         $this->stdIBSCBSTot->gMono->vCBSMono = 0;
@@ -637,18 +645,24 @@ final class MakeDev
                 $imposto = $this->aImposto[$item];
             }
             //ICMS => imposto
+            //ICMS => imposto
             $flagICMS = false;
+            $icms = $this->dom->createElement("ICMS");
             if (!empty($this->aICMS[$item])) {
                 $flagICMS = true;
-                $icms = $this->dom->createElement("ICMS");
                 $this->addTag($icms, $this->aICMS[$item]);
-                $this->addTag($imposto, $icms, 'Falta a tag det/imposto!');
-            }
-            if (!empty($this->aICMSSN[$item])) {
+            } elseif (!empty($this->aICMSPart[$item])) {
                 $flagICMS = true;
-                $icmssn = $this->dom->createElement("ICMS");
-                $this->addTag($icmssn, $this->aICMSSN[$item]);
-                $this->addTag($imposto, $icmssn, 'Falta a tag det/imposto!');
+                $this->addTag($icms, $this->aICMSPart[$item]);
+            } elseif (!empty($this->aICMSST[$item])) {
+                $flagICMS = true;
+                $this->addTag($icms, $this->aICMSST[$item]);
+            } elseif (!empty($this->aICMSSN[$item])) {
+                $flagICMS = true;
+                $this->addTag($icms, $this->aICMSSN[$item]);
+            }
+            if ($flagICMS) {
+                $this->addTag($imposto, $icms, 'Falta a tag det/imposto!');
             }
             //IPI => imposto
             if (!empty($this->aIPI[$item])) {
@@ -699,14 +713,6 @@ final class MakeDev
                         //add gTribRegular
                         $gIBSCBS->appendChild($this->aGTribRegular[$item]);
                     }
-                    //REMOVIDO PELA NT 2025.002_v1.30 - PL_010_V1.30
-                    if (!empty($this->aIBSCredPres[$item]) && !empty($gIBSCBS)) {
-                        $gIBSCBS->appendChild($this->aIBSCredPres[$item]);
-                    }
-                    //REMOVIDO PELA NT 2025.002_v1.30 - PL_010_V1.30
-                    if (!empty($this->aCBSCredPres[$item]) && !empty($gIBSCBS)) {
-                        $gIBSCBS->appendChild($this->aCBSCredPres[$item]);
-                    }
                     if (!empty($this->aGTribCompraGov[$item]) && !empty($gIBSCBS)) {
                         $gIBSCBS->appendChild($this->aGTribCompraGov[$item]);
                     }
@@ -735,6 +741,16 @@ final class MakeDev
                     } elseif (!empty($this->aGCredPresIBSZFM[$item])) {
                         $this->addTag($ibscbs, $this->aGCredPresIBSZFM[$item], 'Falta a tag IBSCBS!');
                     }
+                    //CredPres
+                    $gCredPresOper = $ibscbs->getElementsByTagName("gCredPresOper")->item(0);
+                    if ($gCredPresOper) {
+                        if (!empty($this->aIBSCredPres[$item])) {
+                            $gCredPresOper->appendChild($this->aIBSCredPres[$item]);
+                        }
+                        if (!empty($this->aCBSCredPres[$item])) {
+                            $gCredPresOper->appendChild($this->aCBSCredPres[$item]);
+                        }
+                    }
                     $this->addTag($imposto, $ibscbs, 'Falta a tag det/imposto!');
                 }
             }
@@ -759,23 +775,25 @@ final class MakeDev
                 } else {
                     $this->calculateTtensValues2($det);
                 }
-                //adiciona o vItem informado ou o calculado
-                if (!empty($this->aVItem[$item]['vItem'])) {
-                    $this->dom->addChild(
-                        $det,
-                        "vItem",
-                        $this->conditionalNumberFormatting($this->aVItem[$item]['vItem']),
-                        true,
-                        "det nItem $item Valor Total do Item da NF-e"
-                    );
-                } else {
-                    $this->dom->addChild(
-                        $det,
-                        "vItem",
-                        $this->conditionalNumberFormatting($this->aVItem[$item]['vItemCalculated']),
-                        true,
-                        "det nItem $item Valor Total do Item da NF-e"
-                    );
+                if (!empty($this->aIBSCBS)) {
+                    //adiciona o vItem informado ou o calculado
+                    if (!empty($this->aVItem[$item]['vItem'])) {
+                        $this->dom->addChild(
+                            $det,
+                            "vItem",
+                            $this->conditionalNumberFormatting($this->aVItem[$item]['vItem']),
+                            true,
+                            "det nItem $item Valor Total do Item da NF-e"
+                        );
+                    } else {
+                        $this->dom->addChild(
+                            $det,
+                            "vItem",
+                            $this->conditionalNumberFormatting($this->aVItem[$item]['vItemCalculated']),
+                            true,
+                            "det nItem $item Valor Total do Item da NF-e"
+                        );
+                    }
                 }
                 //DFEReferenciado => det PL_010
                 if (!empty($this->aDFeReferenciado[$item])) {
@@ -1084,7 +1102,7 @@ final class MakeDev
         $identificador = 'W01 <total> -';
         $total = $this->dom->createElement('total');
         //Grupo Totais referentes ao ICMS
-        if (empty($this->ICMSTot)) {
+        if (empty($this->dataICMSTot)) {
             $icms = [
                 'vBC' => null,
                 'vICMS' => null,
@@ -1116,12 +1134,13 @@ final class MakeDev
                 'qBCMonoRet' => null,
                 'vICMSMonoRet' => null,
             ];
-            $this->tagICMSTot((object)$icms);
+        } else {
+            $icms = $this->dataICMSTot;
         }
-        //Até 2036 esta tag deverá existir segundo a documentação atual da SEFAZ
-        $this->addTag($total, $this->ICMSTot);
+        $this->buildTagICMSTot((object)$icms);
+        $this->addTag($total, $this->ICMSTot ?? null);
         //Grupo Totais referentes ao ISSQN
-        if (empty($this->ISSQNTot) && $this->stdISSQNTot->vServ > 0) {
+        if (empty($this->ISSQNTot) && !empty($this->aISSQN)) {
             $iss = [
                 'vServ' => null,
                 'vBC' => null,
@@ -1307,26 +1326,6 @@ final class MakeDev
             }
         }
         return $new;
-    }
-
-    /**
-     * Adjust the text size to the maximum acceptable size
-     * @param string|null $string
-     * @param int $max
-     * @return string|null
-     */
-    protected function adjustingStrings($string, $max = 0): ?string
-    {
-        if (is_null($string)) {
-            return null;
-        }
-        if (empty($string)) {
-            return '';
-        }
-        if ($max === 0) {
-            return $string;
-        }
-        return substr($string, 0, $max);
     }
 
     /**

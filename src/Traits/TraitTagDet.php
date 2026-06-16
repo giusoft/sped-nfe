@@ -160,7 +160,7 @@ trait TraitTagDet
         $this->dom->addChild(
             $prod,
             "CEST",
-            $std->CEST,
+            $std->CEST ?? null,
             false,
             "$identificador Codigo especificador da Substuicao Tributaria (CEST)"
         );
@@ -183,12 +183,12 @@ trait TraitTagDet
         $this->dom->addChild(
             $prod,
             "cBenef",
-            $std->cBenef,
+            $std->cBenef ?? null,
             false,
             "$identificador Código de Benefício Fiscal utilizado pela UF"
         );
         //NT 2025.002_V1.30 - PL_010_V1.30
-        if ($this->schema > 9) {
+        if (isset($std->tpCredPresIBSZFM) && $this->schema > 9) {
             $this->dom->addChild(
                 $prod,
                 "tpCredPresIBSZFM",
@@ -346,6 +346,47 @@ trait TraitTagDet
     }
 
     /**
+     * Método mantido para atender processo e geração de XML a partir do TXT
+     * NÃO DEVE SER USADA PARA OPERAÇÕES NORMAIS DE CONSTRUÇÃO DE NF-E
+     * Define a tag referente ao Código Especificador da Substituição Tributária (CEST).
+     * tag NFe/infNFe/det[]/prod/CEST
+     *
+     * @param stdClass $std Objeto contendo os parâmetros necessários, incluindo item, CEST, indEscala e CNPJFab.
+     * @throws DOMException Caso ocorra um erro na manipulação do DOM.
+     */
+    public function tagCEST(stdClass $std)
+    {
+        $possible = ['item', 'CEST', 'indEscala', 'CNPJFab'];
+        $std = $this->equilizeParameters($std, $possible);
+        $identificador = 'I05b <ctrltST> - ';
+        if (!empty($this->aProd[$std->item])) {
+            $prod = $this->aProd[$std->item];
+            //caso exista a tag CEST finalizar
+            if (!empty($prod->getElementsByTagName('CEST')->item(0))) {
+                return;
+            }
+            $ncm = $prod->getElementsByTagName('NCM')->item(0);
+            $cest = $this->dom->createElement("CEST", Strings::onlyNumbers($std->CEST));
+            $this->dom->insertAfter($cest, $ncm);
+            $flagIndEscala = false;
+            if (isset($std->indEscala)) {
+                $indEscala = $this->dom->createElement("indEscala", $std->indEscala);
+                $this->dom->insertAfter($indEscala, $cest);
+                $flagIndEscala = true;
+            }
+            $CNPJFab = null;
+            if (isset($std->CNPJFab)) {
+                $CNPJFab = $this->dom->createElement("CNPJFab", $std->CNPJFab);
+                if ($flagIndEscala) {
+                    $this->dom->insertAfter($CNPJFab, $indEscala);
+                } else {
+                    $this->dom->insertAfter($CNPJFab, $cest);
+                }
+            }
+        }
+    }
+
+    /**
      * Informações adicionais do produto V01 pai H01
      * tag NFe/infNFe/det[]/infAdProd
      * @param stdClass $std
@@ -397,7 +438,7 @@ trait TraitTagDet
         }
         if (!empty($std->obsFisco_xCampo) && !empty($std->obsFisco_xTexto)) {
             $obsFisco = $this->dom->createElement("obsFisco");
-            $obsFisco->setAttribute("xCampo", $std->obsCont_xCampo ?? '');
+            $obsFisco->setAttribute("xCampo", $std->obsFisco_xCampo ?? '');
             $this->dom->addChild(
                 $obsFisco,
                 "xTexto",

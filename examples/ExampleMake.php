@@ -8,11 +8,11 @@ use NFePHP\Common\Certificate;
 use NFePHP\Common\Exception\ValidatorException;
 use NFePHP\Common\Signer;
 use NFePHP\Common\Validator;
-use NFePHP\NFe\MakeDev;
+use NFePHP\NFe\Make;
 
 try {
     $schema = 'PL_010_V1'; //PL_010_V1
-    $mk = new MakeDev($schema);
+    $mk = new Make($schema);
     $mk->setOnlyAscii(false);
     $mk->setCheckGtin(true);
 
@@ -1279,6 +1279,7 @@ try {
 
     //############################## TAG <cobr/dup> opcional #####################################################
     //bloco de duplicadas (boletos)
+    //para não conflitar com o bloco tagfat, este bloco só é carregado quando for indPag = 1
     //nDup opcional string 1 a 60 caracteres
     //dVenc opcional data de vencimento no formato AAAA-MM-DD
     //vDup OBRIGATÓRIO numero com até 2 decimais
